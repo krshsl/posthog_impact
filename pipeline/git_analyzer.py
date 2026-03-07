@@ -16,6 +16,7 @@ import asyncio
 import logging
 import os
 import re
+from collections import OrderedDict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -24,15 +25,31 @@ from pipeline.schemas import CommitRecord, PRRecord
 
 logger = logging.getLogger(__name__)
 
-# Semaphore is created lazily per event-loop to avoid cross-loop issues
-_semaphore: asyncio.Semaphore | None = None
+# Semaphores are created lazily per event-loop
+_git_semaphore: asyncio.Semaphore | None = None
+_pr_semaphore: asyncio.Semaphore | None = None
+
+# Simple in-memory LRU cache for file metadata to avoid repeated `git log`
+# calls for the same (commit_hash, file_path) pair within a run.
+FILE_METADATA_CACHE_SIZE = 10000
+_file_metadata_cache: OrderedDict[tuple[str, str], tuple[str | None, bool]] = OrderedDict()
+_file_metadata_lock = asyncio.Lock()
+# Track in-flight requests to deduplicate concurrent queries for the same key.
+_file_metadata_inflight: dict[tuple[str, str], asyncio.Future] = {}
 
 
-def _get_semaphore() -> asyncio.Semaphore:
-    global _semaphore
-    if _semaphore is None:
-        _semaphore = asyncio.Semaphore(GIT_CONCURRENCY)
-    return _semaphore
+def _get_git_semaphore() -> asyncio.Semaphore:
+    global _git_semaphore
+    if _git_semaphore is None:
+        _git_semaphore = asyncio.Semaphore(GIT_CONCURRENCY)
+    return _git_semaphore
+
+
+def _get_pr_semaphore() -> asyncio.Semaphore:
+    global _pr_semaphore
+    if _pr_semaphore is None:
+        _pr_semaphore = asyncio.Semaphore(50)  # Bound PR-level concurrency
+    return _pr_semaphore
 
 
 # ---------------------------------------------------------------------------
@@ -116,7 +133,7 @@ async def backfill_commits(
     Returns:
         List of CommitRecord objects (is_off_hours NOT set — caller must apply).
     """
-    async with _get_semaphore():
+    async with _get_git_semaphore():
         try:
             out = await _run_git(
                 [
@@ -150,62 +167,16 @@ async def backfill_commits(
 # ---------------------------------------------------------------------------
 
 
-async def get_previous_author(
-    commit_hash: str,
-    file_path: str,
-    clone_dir: str = GIT_CLONE_DIR,
-) -> str | None:
-    """Return the GitHub login of whoever last touched `file_path` before `commit_hash`.
-
-    Runs:
-        git log -n 1 --format="%aN" --skip=1 <commit_hash> -- <file_path>
-
-    The `--skip=1` causes git to skip the commit at `commit_hash` itself, so
-    we get the *previous* author.
-
-    Args:
-        commit_hash: SHA of the PR's merge commit.
-        file_path:   Relative path of the file to inspect.
-        clone_dir:   Path to the bare clone.
-
-    Returns:
-        Author name string, or None if no prior commit exists for this file.
-    """
-    async with _get_semaphore():
-        try:
-            out = await _run_git(
-                [
-                    "log", "-n", "1",
-                    "--format=%aN",
-                    "--skip=1",
-                    commit_hash,
-                    "--",
-                    file_path,
-                ],
-                cwd=clone_dir,
-            )
-        except RuntimeError as exc:
-            logger.debug("[git] get_previous_author failed (%s, %s): %s", commit_hash, file_path, exc)
-            return None
-
-    return out if out else None
-
-
-# ---------------------------------------------------------------------------
-# Legacy code detection
-# ---------------------------------------------------------------------------
-
-
-async def is_legacy_file(
+async def get_file_metadata(
     commit_hash: str,
     file_path: str,
     clone_dir: str = GIT_CLONE_DIR,
     legacy_months: int = 6,
-) -> bool:
-    """Return True if `file_path` was dormant for > `legacy_months` before `commit_hash`.
+) -> tuple[str | None, bool]:
+    """Return (previous_author, is_legacy) for a file using a single git call.
 
     Runs:
-        git log -1 --format="%cI" --skip=1 <commit_hash> -- <file_path>
+        git log -n 1 --format="%aN|%cI" --skip=1 <commit_hash> -- <file_path>
 
     Args:
         commit_hash:   SHA of the PR's merge commit.
@@ -214,14 +185,38 @@ async def is_legacy_file(
         legacy_months: Dormancy threshold in months.
 
     Returns:
-        True if the previous modification is older than the threshold.
+        Tuple of (author_name or None, is_legacy_boolean).
     """
-    async with _get_semaphore():
-        try:
+    key = (commit_hash, file_path)
+
+    # Fast-path: check cache or in-flight requests under the lock.
+    async with _file_metadata_lock:
+        if key in _file_metadata_cache:
+            # LRU: move to end and return
+            _file_metadata_cache.move_to_end(key)
+            return _file_metadata_cache[key]
+
+        fut = _file_metadata_inflight.get(key)
+        if fut is not None:
+            # Another coroutine is already fetching this key; wait for it
+            # and return the resolved value or raise its exception.
+            try:
+                return await fut
+            except Exception:
+                return None, False
+
+        # Create a future to mark this request as in-flight.
+        loop = asyncio.get_running_loop()
+        fut = loop.create_future()
+        _file_metadata_inflight[key] = fut
+
+    # Perform the git call outside the cache lock to avoid blocking others.
+    try:
+        async with _get_git_semaphore():
             out = await _run_git(
                 [
-                    "log", "-1",
-                    "--format=%cI",
+                    "log", "-n", "1",
+                    "--format=%aN|%cI",
                     "--skip=1",
                     commit_hash,
                     "--",
@@ -229,21 +224,47 @@ async def is_legacy_file(
                 ],
                 cwd=clone_dir,
             )
-        except RuntimeError as exc:
-            logger.debug("[git] is_legacy_file failed (%s, %s): %s", commit_hash, file_path, exc)
-            return False
+    except RuntimeError as exc:
+        logger.debug("[git] get_file_metadata failed (%s, %s): %s", commit_hash, file_path, exc)
+        # Cleanup in-flight and set exception for waiters
+        async with _file_metadata_lock:
+            fut = _file_metadata_inflight.pop(key, None)
+            if fut and not fut.done():
+                fut.set_exception(exc)
+        return None, False
 
-    if not out:
-        return False
+    if not out or "|" not in out:
+        result = (None, False)
+    else:
+        parts = out.split("|", 1)
+        author = parts[0].strip() if parts[0].strip() else None
+        is_legacy = False
 
-    try:
-        prev_dt = datetime.fromisoformat(out)
-    except ValueError:
-        return False
+        if len(parts) > 1 and parts[1].strip():
+            try:
+                prev_dt = datetime.fromisoformat(parts[1].strip())
+                now = datetime.now(tz=timezone.utc)
+                threshold = now - timedelta(days=legacy_months * 30)
+                is_legacy = prev_dt.replace(tzinfo=prev_dt.tzinfo or timezone.utc) < threshold
+            except (ValueError, TypeError):
+                is_legacy = False
 
-    now = datetime.now(tz=timezone.utc)
-    threshold = now - timedelta(days=legacy_months * 30)
-    return prev_dt.replace(tzinfo=prev_dt.tzinfo or timezone.utc) < threshold
+        result = (author, is_legacy)
+
+    # Store in cache and resolve in-flight future
+    async with _file_metadata_lock:
+        # Store result in LRU cache
+        _file_metadata_cache[key] = result
+        _file_metadata_cache.move_to_end(key)
+        # Evict oldest if over capacity
+        while len(_file_metadata_cache) > FILE_METADATA_CACHE_SIZE:
+            _file_metadata_cache.popitem(last=False)
+
+        fut = _file_metadata_inflight.pop(key, None)
+        if fut and not fut.done():
+            fut.set_result(result)
+
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -267,7 +288,7 @@ async def get_changed_files(
     Returns:
         List of relative file paths.
     """
-    async with _get_semaphore():
+    async with _get_git_semaphore():
         try:
             out = await _run_git(
                 ["diff-tree", "--no-commit-id", "-r", "--name-only", commit_hash],
@@ -307,8 +328,23 @@ async def analyze_prs_concurrently(
     Returns:
         The same list, annotated.
     """
-    tasks = [_annotate_pr(pr, clone_dir) for pr in prs]
-    await asyncio.gather(*tasks, return_exceptions=True)
+    total = len(prs)
+    processed = 0
+
+    async def _wrapped_annotate(pr):
+        nonlocal processed
+        async with _get_pr_semaphore():
+            try:
+                await _annotate_pr(pr, clone_dir)
+            except Exception as e:
+                logger.error("[git] Failed to annotate PR #%d: %s", pr.number, e)
+            finally:
+                processed += 1
+                if processed % 100 == 0 or processed == total:
+                    logger.info("[git] Progress: annotated %d/%d PRs", processed, total)
+
+    tasks = [_wrapped_annotate(pr) for pr in prs]
+    await asyncio.gather(*tasks)
     return prs
 
 
@@ -340,21 +376,16 @@ async def _annotate_pr(pr: PRRecord, clone_dir: str) -> None:
     author_votes: dict[str, int] = {}
     legacy_count = 0
 
-    author_tasks = [get_previous_author(merge_oid, f, clone_dir) for f in files]
-    legacy_tasks = [is_legacy_file(merge_oid, f, clone_dir) for f in files]
+    meta_tasks = [get_file_metadata(merge_oid, f, clone_dir) for f in files]
+    results = await asyncio.gather(*meta_tasks, return_exceptions=True)
 
-    authors, legacy_flags = await asyncio.gather(
-        asyncio.gather(*author_tasks, return_exceptions=True),
-        asyncio.gather(*legacy_tasks, return_exceptions=True),
-    )
-
-    for maybe_author in authors:
-        if isinstance(maybe_author, str) and maybe_author:
-            author_votes[maybe_author] = author_votes.get(maybe_author, 0) + 1
-
-    for flag in legacy_flags:
-        if flag is True:
-            legacy_count += 1
+    for res in results:
+        if isinstance(res, tuple):
+            author, is_legacy = res
+            if author:
+                author_votes[author] = author_votes.get(author, 0) + 1
+            if is_legacy:
+                legacy_count += 1
 
     # 4 & 5. Write results
     if author_votes:

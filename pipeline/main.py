@@ -38,6 +38,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger("pipeline.main")
 
+if config.BASE_BRANCH != "master":
+    logger.warning(
+        "BASE_BRANCH is set to %r in config; overriding to 'master' to enforce master-only runs",
+        config.BASE_BRANCH,
+    )
+    config.BASE_BRANCH = "master"
+
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(

@@ -34,47 +34,50 @@ logger = logging.getLogger(__name__)
 # GraphQL query
 # ---------------------------------------------------------------------------
 
+COMMIT_PAGE_SIZE: int = 100
+
+
 _PR_QUERY = """
 query($owner: String!, $repo: String!, $cursor: String, $base: String!) {
-  repository(owner: $owner, name: $repo) {
-    pullRequests(
-      first: %(page_size)d
-      after: $cursor
-      states: MERGED
-      baseRefName: $base
-      orderBy: {field: CREATED_AT, direction: DESC}
-    ) {
-      pageInfo { hasNextPage endCursor }
-      nodes {
-        number
-        title
-        author { login }
-        createdAt
-        mergedAt
-        additions
-        deletions
-        changedFiles
-        isDraft
-        commits {
-          totalCount
-          nodes {
-            commit {
-              oid
-              author { user { login } date }
+    repository(owner: $owner, name: $repo) {
+        pullRequests(
+            first: %(page_size)d
+            after: $cursor
+            states: MERGED
+            baseRefName: $base
+            orderBy: {field: CREATED_AT, direction: DESC}
+        ) {
+            pageInfo { hasNextPage endCursor }
+            nodes {
+                number
+                title
+                author { login }
+                createdAt
+                mergedAt
+                additions
+                deletions
+                changedFiles
+                isDraft
+                commits(first: %(commit_page_size)d) {
+                    totalCount
+                    nodes {
+                        commit {
+                            oid
+                            author { user { login } date }
+                        }
+                    }
+                }
+                reviews(first: 1) {
+                    nodes { createdAt }
+                }
+                closingIssuesReferences(first: 50) {
+                    nodes { number author { login } createdAt }
+                }
             }
-          }
         }
-        reviews(first: 1) {
-          nodes { createdAt }
-        }
-        closingIssuesReferences(first: 50) {
-          nodes { number author { login } createdAt }
-        }
-      }
     }
-  }
 }
-""" % {"page_size": GQL_PAGE_SIZE}
+""" % {"page_size": GQL_PAGE_SIZE, "commit_page_size": COMMIT_PAGE_SIZE}
 
 
 # ---------------------------------------------------------------------------
@@ -96,15 +99,18 @@ def _hydrate_pr(node: dict) -> PRRecord | None:
     # Commits
     commits_data = node.get("commits", {})
     total_commit_count: int = commits_data.get("totalCount", 0)
-    needs_backfill = total_commit_count > GQL_PAGE_SIZE
+    # The GraphQL commits list was requested with a fixed page size
+    # (COMMIT_PAGE_SIZE). If totalCount exceeds that, we need a local
+    # git backfill to obtain the full commit list.
+    needs_backfill = total_commit_count > COMMIT_PAGE_SIZE
 
     commits: list[CommitRecord] = []
     for cn in commits_data.get("nodes", []):
         commit = cn.get("commit", {})
         c_author = commit.get("author") or {}
         u = c_author.get("user") or {}
-        login = u.get("login", "")
-        if login.lower() in BOT_IGNORE_LIST:
+        login = (u.get("login") or "")
+        if login and login.lower() in BOT_IGNORE_LIST:
             continue
         date_str = c_author.get("date", "")
         off = False
@@ -112,6 +118,7 @@ def _hydrate_pr(node: dict) -> PRRecord | None:
             try:
                 off = is_off_hours(date_str)
             except (ValueError, TypeError):
+                # Keep default False on parse error
                 pass
         commits.append(CommitRecord(
             oid=commit.get("oid", ""),

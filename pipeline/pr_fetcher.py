@@ -47,7 +47,7 @@ def load_state(path: str) -> tuple[OutputPayload | None, MetaState]:
     """
     file = Path(path)
     if not file.exists():
-        logger.info("[fetcher] No existing state at %s — starting fresh", path)
+        logger.info("[fetcher] No existing state at %s  starting fresh", path)
         now_str = datetime.now(tz=timezone.utc).isoformat()
         return None, MetaState(
             last_fetched_at=now_str,
@@ -55,8 +55,10 @@ def load_state(path: str) -> tuple[OutputPayload | None, MetaState]:
             window_days=DEFAULT_WINDOW_DAYS,
         )
 
-    with gzip.open(path, "rb") as f:
-        raw = json.loads(f.read().decode("utf-8"))
+    # Stream-read the gzip file into memory once and parse JSON. This avoids
+    # an extra decode/encode step and is slightly faster for large payloads.
+    with gzip.open(path, "rt", encoding="utf-8") as f:
+        raw = json.load(f)
 
     meta_raw = raw.get("meta", {})
     meta = MetaState(
@@ -66,8 +68,8 @@ def load_state(path: str) -> tuple[OutputPayload | None, MetaState]:
     )
 
     prs: list[PRRecord] = []
+    from pipeline.schemas import CommitRecord, IssueRef  # local import to avoid circularity
     for pr_raw in raw.get("pull_requests", []):
-        from pipeline.schemas import CommitRecord, IssueRef  # local import to avoid circularity
         commits = [
             CommitRecord(
                 oid=c["oid"],
@@ -212,14 +214,21 @@ def prune(prs: list[PRRecord], now: datetime, window_days: int) -> list[PRRecord
     """
     cutoff = now - timedelta(days=window_days)
     before = len(prs)
-    result = [
-        pr for pr in prs
-        if datetime.fromisoformat(pr.merged_at.replace("Z", "+00:00")) >= cutoff
-    ]
-    pruned = before - len(result)
+    # Build a new list but avoid repeated replace() calls by parsing once per PR
+    kept: list[PRRecord] = []
+    for pr in prs:
+        try:
+            merged_dt = datetime.fromisoformat(pr.merged_at.replace("Z", "+00:00"))
+        except (ValueError, TypeError):
+            # If merged_at is malformed, conservatively keep the PR
+            kept.append(pr)
+            continue
+        if merged_dt >= cutoff:
+            kept.append(pr)
+    pruned = before - len(kept)
     if pruned:
         logger.info("[fetcher] Pruned %d PRs outside %d-day window", pruned, window_days)
-    return result
+    return kept
 
 
 # ---------------------------------------------------------------------------
