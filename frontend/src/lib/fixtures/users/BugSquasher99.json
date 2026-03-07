@@ -1,0 +1,37 @@
+{
+  "author": "BugSquasher99",
+  "avatar_url": "https://avatars.githubusercontent.com/u/100003?v=4",
+  "total_score": 8200,
+  "metrics_radar": {
+    "pr_metrics": 85,
+    "cycle_time": 80,
+    "pr_impact": 92,
+    "bugs_attribution": 95,
+    "legacy_code": 75,
+    "off_hours": 70
+  },
+  "time_series": [
+    {
+      "date": "2026-02-15",
+      "pr_metrics": 85,
+      "cycle_time": 80,
+      "pr_impact": 92,
+      "bugs_attribution": 95,
+      "legacy_code": 75,
+      "off_hours": 70,
+      "raw_stats": {
+        "issues_fixed": 15,
+        "issues_introduced": 0,
+        "features_introduced": 0,
+        "pr_count": 10,
+        "off_hours_commits": 2,
+        "legacy_files_modified": 2
+      }
+    }
+  ],
+  "stats": {
+    "avg_pr_size": "XS",
+    "avg_cycle_time_hours": 12.5,
+    "review_pass_rate_pct": 88.0
+  }
+}

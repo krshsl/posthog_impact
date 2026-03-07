@@ -1,0 +1,71 @@
+{
+  "author": "CyberNinja",
+  "avatar_url": "https://avatars.githubusercontent.com/u/100001?v=4",
+  "total_score": 9400,
+  "metrics_radar": {
+    "pr_metrics": 98,
+    "cycle_time": 92,
+    "pr_impact": 95,
+    "bugs_attribution": 90,
+    "legacy_code": 88,
+    "off_hours": 94
+  },
+  "time_series": [
+    {
+      "date": "2026-02-05",
+      "pr_metrics": 95,
+      "cycle_time": 90,
+      "pr_impact": 92,
+      "bugs_attribution": 88,
+      "legacy_code": 85,
+      "off_hours": 90,
+      "raw_stats": {
+        "issues_fixed": 3,
+        "issues_introduced": 0,
+        "features_introduced": 2,
+        "pr_count": 4,
+        "off_hours_commits": 12,
+        "legacy_files_modified": 5
+      }
+    },
+    {
+      "date": "2026-02-20",
+      "pr_metrics": 97,
+      "cycle_time": 91,
+      "pr_impact": 94,
+      "bugs_attribution": 89,
+      "legacy_code": 87,
+      "off_hours": 92,
+      "raw_stats": {
+        "issues_fixed": 5,
+        "issues_introduced": 1,
+        "features_introduced": 3,
+        "pr_count": 6,
+        "off_hours_commits": 15,
+        "legacy_files_modified": 7
+      }
+    },
+    {
+      "date": "2026-03-05",
+      "pr_metrics": 98,
+      "cycle_time": 92,
+      "pr_impact": 95,
+      "bugs_attribution": 90,
+      "legacy_code": 88,
+      "off_hours": 94,
+      "raw_stats": {
+        "issues_fixed": 8,
+        "issues_introduced": 0,
+        "features_introduced": 5,
+        "pr_count": 9,
+        "off_hours_commits": 20,
+        "legacy_files_modified": 10
+      }
+    }
+  ],
+  "stats": {
+    "avg_pr_size": "M",
+    "avg_cycle_time_hours": 4.5,
+    "review_pass_rate_pct": 98.5
+  }
+}

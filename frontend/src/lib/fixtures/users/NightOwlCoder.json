@@ -1,0 +1,37 @@
+{
+  "author": "NightOwlCoder",
+  "avatar_url": "https://avatars.githubusercontent.com/u/100005?v=4",
+  "total_score": 7650,
+  "metrics_radar": {
+    "pr_metrics": 75,
+    "cycle_time": 82,
+    "pr_impact": 70,
+    "bugs_attribution": 88,
+    "legacy_code": 80,
+    "off_hours": 98
+  },
+  "time_series": [
+    {
+      "date": "2026-02-15",
+      "pr_metrics": 75,
+      "cycle_time": 82,
+      "pr_impact": 70,
+      "bugs_attribution": 88,
+      "legacy_code": 80,
+      "off_hours": 98,
+      "raw_stats": {
+        "issues_fixed": 3,
+        "issues_introduced": 1,
+        "features_introduced": 2,
+        "pr_count": 5,
+        "off_hours_commits": 45,
+        "legacy_files_modified": 4
+      }
+    }
+  ],
+  "stats": {
+    "avg_pr_size": "M",
+    "avg_cycle_time_hours": 6.0,
+    "review_pass_rate_pct": 90.0
+  }
+}
