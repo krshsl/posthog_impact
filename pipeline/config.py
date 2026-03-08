@@ -43,6 +43,18 @@ BOT_IGNORE_LIST: frozenset[str] = frozenset(
         "snyk-bot",
         "codecov[bot]",
         "stale[bot]",
+        "mendral-app",
+        "posthog-js-upgrader",
+        "clickhouse-sync-posthog",
+        "copilot-swe-agent",
+        "posthog",
+        "hedgehog-bot",
+        "posthog-vitals-bot",
+        "posthog-js-auto-release-bot",
+        "vercel[bot]",
+        "mergify[bot]",
+        "sentry[bot]",
+        "scheduled-actions-posthog",
     }
 )
 
