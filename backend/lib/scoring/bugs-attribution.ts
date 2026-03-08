@@ -1,43 +1,49 @@
-import type { IssueEvent } from "../types";
+import type { PullRequest } from "../types";
 
 const FIXED_REWARD   = 10;
-const INTRODUCED_PEN = 15; // Introducing bugs penalises more than fixing rewards
+const INTRODUCED_PEN = 15;
 
 /**
- * Bug Attribution (25% weight — highest)
- *
- * Positive: author fixed an issue (identified by PR closing an issue)
- * Negative: author introduced a bug (identified by pipeline git-blame attribution)
- *
- * raw = (fixed_count * FIXED_REWARD) - (introduced_count * INTRODUCED_PEN)
- * Floored at 0 — a net-negative author still gets 0 raw (not a negative score
- * that would distort normalisation).
+ * Bug Attribution (25% weight)
+ * 
+ * Works purely with PR data now.
+ * - Positive: author of a PR that has issues in `issues_fixed`.
+ * - Negative: user in `bug_introduced_by` field of any PR in the window.
  */
-export function calcBugsAttribution(events: IssueEvent[], author: string): number {
-  const fixedCount      = events.filter((e) => e.type === "fixed"      && e.author === author).length;
-  const introducedCount = events.filter((e) => e.type === "introduced" && e.author === author).length;
+export function calcBugsAttribution(
+  prs: PullRequest[],
+  author: string
+): number {
+  const fixedCount = prs
+    .filter((p) => p.author_login === author)
+    .reduce((sum, p) => sum + p.issues_fixed.length, 0);
+
+  const introducedCount = prs.filter(
+    (p) => p.bug_introduced_by === author
+  ).length;
 
   const raw = fixedCount * FIXED_REWARD - introducedCount * INTRODUCED_PEN;
   return Math.max(raw, 0);
 }
 
-/**
- * Run bug attribution for every unique author at once
- * (avoids iterating the events array once per author).
- */
 export function calcAllBugsAttribution(
-  events: IssueEvent[]
+  prs: PullRequest[]
 ): Record<string, number> {
   const scores: Record<string, number> = {};
 
-  // Initialise to 0 for any author appearing in any event
-  for (const e of events) {
-    if (!(e.author in scores)) scores[e.author] = 0;
-    if (e.type === "fixed")       scores[e.author] += FIXED_REWARD;
-    if (e.type === "introduced")  scores[e.author] -= INTRODUCED_PEN;
+  for (const pr of prs) {
+    const solver = pr.author_login;
+    const introducer = pr.bug_introduced_by;
+
+    if (!(solver in scores)) scores[solver] = 0;
+    scores[solver] += pr.issues_fixed.length * FIXED_REWARD;
+
+    if (introducer) {
+      if (!(introducer in scores)) scores[introducer] = 0;
+      scores[introducer] -= INTRODUCED_PEN;
+    }
   }
 
-  // Floor each score at 0
   for (const author in scores) {
     scores[author] = Math.max(scores[author], 0);
   }

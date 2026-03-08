@@ -5,50 +5,45 @@
 export type PRSize = "XS" | "S" | "M" | "L" | "XL";
 
 export interface Commit {
-  sha: string;
-  /** ISO 8601 with UTC offset embedded, e.g. "2024-11-01T14:30:00+05:30" */
-  authored_at: string;
-  /** Pre-computed by pipeline based on authored_at UTC offset */
+  oid: string;
+  author_login: string;
+  /** ISO 8601 with UTC offset */
+  date: string;
+  /** Pre-computed by pipeline */
   is_off_hours: boolean;
-  author: string;
+}
+
+export interface IssueRef {
+  number: number;
+  author_login: string;
+  created_at: string;
 }
 
 export interface PullRequest {
-  id: number;
   number: number;
-  author: string;
-  avatar_url: string;
   title: string;
+  author_login: string;
   /** ISO 8601 */
   created_at: string;
-  /** ISO 8601 — null if not merged */
   merged_at: string | null;
   additions: number;
   deletions: number;
-  /** Number of review rounds before approval */
-  revision_cycles: number;
-  /** true if PR title/body references a bug/issue fix */
-  is_bug_fix: boolean;
+  changed_files: int;
+  is_draft: boolean;
   commits: Commit[];
-  /** Files modified that were last touched > 6 months ago (pre-computed by pipeline) */
-  legacy_files_modified: number;
-}
-
-export interface IssueEvent {
-  id: number;
-  pr_id: number;
-  /** "fixed"  → author of the PR gets a positive score
-   *  "introduced" → author gets a negative score */
-  type: "fixed" | "introduced";
-  author: string;
-  /** ISO 8601 */
-  timestamp: string;
+  /** Earliest review timestamp */
+  reviews_first_at: string | null;
+  /** Issues that were resolved by this PR */
+  issues_fixed: IssueRef[];
+  /** Who introduced the bug that this PR fixes */
+  bug_introduced_by: string | null;
+  /** How many files modified were untouched for > 6 months */
+  legacy_file_count: number;
 }
 
 export interface PipelineMeta {
-  /** ISO 8601 — when the pipeline last ran */
-  fetched_at: string;
-  /** How far back the dataset covers, in days (typically 90) */
+  last_fetched_at: string;
+  earliest_fetched_at: string;
   window_days: number;
 }
 
@@ -56,7 +51,6 @@ export interface PipelineMeta {
 export interface GithubData {
   meta: PipelineMeta;
   pull_requests: PullRequest[];
-  issue_events: IssueEvent[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -82,20 +76,18 @@ export interface NormalizedMetrics {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// API Response Schemas (§5A Leaderboard, §5B User Profile)
+// API Response Schemas
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface LeaderboardEntry {
   rank: number;
   author: string;
   avatar_url: string;
-  /** Final weighted score, 0–100 */
   total_score: number;
   metrics: NormalizedMetrics;
 }
 
 export interface LeaderboardResponse {
-  /** ISO 8601 */
   last_updated: string;
   days_window: number;
   rankings: LeaderboardEntry[];
@@ -111,7 +103,6 @@ export interface DailyStats {
 }
 
 export interface TimeSeriesEntry {
-  /** YYYY-MM-DD */
   date: string;
   pr_metrics_score: number;
   cycle_time_score: number;
