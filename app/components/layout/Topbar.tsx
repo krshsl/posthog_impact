@@ -8,8 +8,8 @@ export function Topbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         <div className="flex items-center gap-6 md:gap-10">
           <Link href="/" className="flex items-center space-x-3 transition-opacity hover:opacity-80">
-            <div className="bg-cyan-500/10 p-1.5 rounded-lg border border-cyan-500/20 shadow-[0_0_15px_rgba(6,182,212,0.15)]">
-              <Activity className="h-5 w-5 text-cyan-400" />
+            <div className="bg-zinc-500/10 p-1.5 rounded-lg border border-zinc-500/20 shadow-[0_0_15px_rgba(113, 113, 122, 0.15)]">
+              <Activity className="h-5 w-5 text-zinc-400" />
             </div>
             <span className="inline-block font-bold text-lg text-zinc-100 hidden sm:inline-block">
               PostHog Impact
