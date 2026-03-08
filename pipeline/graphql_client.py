@@ -130,16 +130,32 @@ def _hydrate_pr(node: dict) -> PRRecord | None:
     reviews = node.get("reviews", {}).get("nodes", [])
     reviews_first_at: str | None = reviews[0].get("createdAt") if reviews else None
 
-    # Issues fixed via headRefName regex
+    # Issues fixed via headRefName regex or title keyword
     issues_fixed: list[IssueRef] = []
     head_ref = node.get("headRefName", "")
+    title = node.get("title", "")
+    
+    # 1. Look for specific issue numbers in branch name
     if head_ref:
         # Look for numbers that look like issue numbers (e.g. 1234-fix, issue/1234, etc)
         match = re.search(r'(?:^|/|issue/|bug/|fix/|#)(\d{3,5})(?:-|$)', head_ref)
         if match:
-            # We don't have the issue author/createdAt from headRefName, set defaults
             issues_fixed.append(IssueRef(
                 number=int(match.group(1)),
+                author_login="",
+                created_at="",
+            ))
+            
+    # 2. General "fix" detection (Title or Branch) if no specific issue found
+    if not issues_fixed:
+        has_fix_keyword = (
+            re.search(r'\bfix\b', title, re.IGNORECASE) or 
+            re.search(r'\bfix\b', head_ref, re.IGNORECASE)
+        )
+        if has_fix_keyword:
+            # Add a generic IssueRef (number 0) to flag this as a fixed bug
+            issues_fixed.append(IssueRef(
+                number=0,
                 author_login="",
                 created_at="",
             ))
