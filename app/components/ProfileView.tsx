@@ -1,11 +1,11 @@
 "use client";
 
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { ProfileHeader } from "@/components/profile/ProfileHeader";
 import { MetricsRadarChart } from "@/components/profile/MetricsRadarChart";
 import { StatsSummaryCards } from "@/components/profile/StatsSummaryCards";
 import { TimeSeriesAreaChart } from "@/components/profile/TimeSeriesAreaChart";
-import { Button } from "@/components/ui/button";
 import { ChevronLeft } from "lucide-react";
 import type { UserProfileResponse } from "@/lib/types";
 
@@ -15,28 +15,20 @@ interface ProfileViewProps {
 }
 
 export function ProfileView({ profile, rank }: ProfileViewProps) {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const pathname = usePathname();
-
-  const handleBack = () => {
-    const params = new URLSearchParams(searchParams);
-    params.delete("user");
-    router.push(`${pathname}?${params.toString()}`, { scroll: false });
-  };
+  const days = searchParams.get('days') || '90';
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-8 pt-4">
       <div className="flex items-center justify-between">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleBack}
-          className="text-zinc-400 hover:text-zinc-100 -ml-2"
+        <Link
+          href={`/?days=${days}`}
+          scroll={false}
+          className="inline-flex items-center text-sm font-medium text-zinc-400 hover:text-zinc-100 transition-colors -ml-2 px-3 py-2 rounded-md hover:bg-zinc-900"
         >
           <ChevronLeft className="h-4 w-4 mr-1" />
           Back to Leaderboard
-        </Button>
+        </Link>
       </div>
 
       <div className="space-y-8 pb-12">

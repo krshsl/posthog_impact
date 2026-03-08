@@ -11,7 +11,7 @@ interface MetricsRadarChartProps {
 const chartConfig = {
   score: {
     label: "Score",
-    color: "#fafafa", // zinc-50
+    color: "#22d3ee", // cyan-400 for better visibility
   },
 } satisfies ChartConfig
 
@@ -41,7 +41,7 @@ export function MetricsRadarChart({ metrics }: MetricsRadarChartProps) {
             margin={{ top: 10, right: 60, bottom: 10, left: 60 }}
           >
             <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
-            <PolarGrid className="fill-zinc-800/[0.05] stroke-zinc-800/50" />
+            <PolarGrid className="fill-zinc-800/[0.05] stroke-zinc-500/50" />
             <PolarAngleAxis
               dataKey="metric"
               tick={({ payload, x, y, cx, cy, index }: any) => {

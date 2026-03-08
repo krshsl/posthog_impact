@@ -9,15 +9,23 @@ const gunzip = promisify(zlib.gunzip);
 
 const GITHUB_DATA_URL = process.env.GITHUB_DATA_URL;
 
+// Simple in-memory cache to avoid re-parsing the large .gz file on every request.
+let cachedData: GithubData | null = null;
+let lastFetchTime: number = 0;
+const CACHE_TTL = 3600 * 1000; // 1 hour
+
 /**
  * Loads the github_data payload.
+ * - Checks in-memory cache first (with 1-hour TTL).
  * - If GITHUB_DATA_URL is set: fetches + decompresses the .gz file.
  * - Otherwise, checks for a local `github_data.json.gz` in the project root.
- * - Falls back to mock data if neither is available.
- *
- * The Next.js `revalidate` export on each route handler controls ISR caching.
  */
 export async function loadGithubData(): Promise<GithubData> {
+  const now = Date.now();
+  if (cachedData && (now - lastFetchTime < CACHE_TTL)) {
+    return cachedData;
+  }
+
   let buffer: Buffer | null = null;
 
   // 1. Try Remote URL
@@ -45,7 +53,7 @@ export async function loadGithubData(): Promise<GithubData> {
       buffer = await fs.readFile(localPath);
       console.log(`Backend: Loading data from local file at ${localPath}`);
     } catch (err) {
-      // File not found, ignore and continue to mock
+      // File not found, ignore
     }
   }
 
@@ -63,6 +71,8 @@ export async function loadGithubData(): Promise<GithubData> {
   }
 
   const raw: unknown = JSON.parse(jsonBuffer.toString("utf-8"));
-  // Trust the pipeline output shape (validated by pipeline's own schema)
-  return raw as GithubData;
+  cachedData = raw as GithubData;
+  lastFetchTime = now;
+
+  return cachedData;
 }

@@ -31,8 +31,8 @@ export function DaySelector() {
         value={currentDays}
         onValueChange={handleValueChange}
       >
-        <SelectTrigger className="w-[120px] bg-zinc-900 border-zinc-800 text-zinc-100 font-medium h-9">
-          <SelectValue placeholder="Select days" />
+        <SelectTrigger className="w-[140px] md:w-[160px] bg-zinc-950 border-zinc-800 text-zinc-100 font-medium h-9 hover:bg-zinc-900 transition-colors">
+          <SelectValue placeholder="Select period" />
         </SelectTrigger>
         <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
           {DAYS_OPTIONS.map((days) => (

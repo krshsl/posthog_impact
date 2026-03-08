@@ -1,8 +1,9 @@
 "use client";
 
+import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Medal } from 'lucide-react';
-import { useRouter, useSearchParams, usePathname } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import type { LeaderboardEntry } from '@/lib/types';
@@ -13,15 +14,8 @@ interface LeaderboardRowProps {
 }
 
 export function LeaderboardRow({ user, index }: LeaderboardRowProps) {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const pathname = usePathname();
-
-  const handleRowClick = () => {
-    const params = new URLSearchParams(searchParams);
-    params.set('user', user.author);
-    router.push(`${pathname}?${params.toString()}`, { scroll: false });
-  };
+  const days = searchParams.get('days') || '90';
 
   const getRankBadge = (rank: number) => {
     switch (rank) {
@@ -45,8 +39,7 @@ export function LeaderboardRow({ user, index }: LeaderboardRowProps) {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05 }}
-      onClick={handleRowClick}
-      className="group border-b border-zinc-800/50 hover:bg-zinc-900/50 cursor-pointer transition-colors"
+      className="group border-b border-zinc-800/50 hover:bg-zinc-900/50 transition-colors relative"
     >
       <td className="px-4 py-4 whitespace-nowrap">
         <div className="flex items-center justify-center w-8">
@@ -55,15 +48,22 @@ export function LeaderboardRow({ user, index }: LeaderboardRowProps) {
       </td>
       <td className="px-4 py-4 whitespace-nowrap">
         <div className="flex items-center gap-3">
-          <Avatar className="h-10 w-10 border border-zinc-800 grayscale group-hover:grayscale-0 transition-all">
-            <AvatarImage src={user.avatar_url} alt={user.author} />
-            <AvatarFallback className="bg-zinc-900 text-zinc-500 text-xs">
-              {user.author.substring(0, 2).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-          <span className="font-medium text-zinc-300 group-hover:text-zinc-100 transition-colors">
-            {user.author}
-          </span>
+          <Link
+            href={`/?user=${user.author}&days=${days}`}
+            scroll={false}
+            prefetch={true}
+            className="flex items-center gap-3 group/link after:absolute after:inset-0"
+          >
+            <Avatar className="h-10 w-10 border border-zinc-800 grayscale group-hover/link:grayscale-0 group-hover:grayscale-0 transition-all">
+              <AvatarImage src={user.avatar_url} alt={user.author} />
+              <AvatarFallback className="bg-zinc-900 text-zinc-500 text-xs">
+                {user.author.substring(0, 2).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <span className="font-medium text-zinc-300 group-hover/link:text-zinc-100 group-hover:text-zinc-100 transition-colors">
+              {user.author}
+            </span>
+          </Link>
         </div>
       </td>
       <td className="px-4 py-4 whitespace-nowrap text-right font-mono font-bold text-lg text-zinc-100">

@@ -34,6 +34,7 @@ export function StatsSummaryCards({ stats }: StatsSummaryCardsProps) {
             <Badge variant="outline" className={`text-lg px-4 py-1 font-mono ${getPrSizeColor(stats.avg_pr_size)}`}>
               {stats.avg_pr_size}
             </Badge>
+            <p className="text-[10px] text-zinc-500 mt-2 leading-tight">Median lines of code per pull request</p>
           </div>
         </CardContent>
       </Card>
@@ -48,6 +49,7 @@ export function StatsSummaryCards({ stats }: StatsSummaryCardsProps) {
             <p className="text-3xl font-bold font-mono text-zinc-100">
               {stats.avg_cycle_time_hours}<span className="text-xl text-zinc-500 ml-1">hrs</span>
             </p>
+            <p className="text-[10px] text-zinc-500 mt-2 leading-tight">Time from first commit to merge</p>
           </div>
         </CardContent>
       </Card>
@@ -62,6 +64,7 @@ export function StatsSummaryCards({ stats }: StatsSummaryCardsProps) {
             <p className="text-3xl font-bold font-mono text-zinc-100">
               {stats.review_pass_rate_pct}%
             </p>
+            <p className="text-[10px] text-zinc-500 mt-2 leading-tight">% of PRs merged without requested changes</p>
           </div>
         </CardContent>
       </Card>
