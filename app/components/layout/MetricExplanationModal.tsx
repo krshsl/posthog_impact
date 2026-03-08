@@ -47,8 +47,8 @@ export function MetricExplanationModal() {
           <MetricCard title="Bugs Attr." weight="25%">
             Positive for fixes. Negative if recent code changes authored by the user directly caused the bug.
           </MetricCard>
-          <MetricCard title="Legacy Refactor" weight="20%">
-            Rewards modifications to code last touched {">"} 6 months ago.
+          <MetricCard title="Maintenance" weight="20%">
+            Rewards modifications to older dormant or rarely-touched code.
           </MetricCard>
           <MetricCard title="Off-Hours" weight="15%">
             Rewards "degen" hours: Commits pushed before 09:00, after 18:00 local time, or on weekends.

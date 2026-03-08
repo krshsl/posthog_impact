@@ -61,7 +61,7 @@ export function ProfileView({ profile, rank }: ProfileViewProps) {
             dataKeys={[
               { key: 'pr_count', label: 'PRs Merged', color: '#8b5cf6' },
               { key: 'off_hours_commits', label: 'Off-Hours Commits', color: '#f59e0b' },
-              { key: 'legacy_files_modified', label: 'Legacy Files Mod.', color: '#06b6d4' },
+              { key: 'maintenance_score_sum', label: 'Maintenance Score', color: '#06b6d4' },
             ]}
           />
         </div>

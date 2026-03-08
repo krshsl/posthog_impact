@@ -3,7 +3,7 @@ import type { RawMetrics } from "../../lib/types";
 
 const zeroMetrics: RawMetrics = {
   pr_metrics: 0, cycle_time: 0, pr_impact: 0,
-  bugs_attribution: 0, legacy_code: 0, off_hours: 0,
+  bugs_attribution: 0, maintenance: 0, off_hours: 0,
 };
 
 describe("normalizeMetrics", () => {
@@ -46,8 +46,8 @@ describe("normalizeMetrics", () => {
 
   it("all scores are in [0, 100]", () => {
     const raws = {
-      a: { pr_metrics: 10,  cycle_time: 80, pr_impact: 5,  bugs_attribution: 0,  legacy_code: 30, off_hours: 90 },
-      b: { pr_metrics: 100, cycle_time: 20, pr_impact: 50, bugs_attribution: 40, legacy_code: 0,  off_hours: 10 },
+      a: { pr_metrics: 10,  cycle_time: 80, pr_impact: 5,  bugs_attribution: 0,  maintenance: 30, off_hours: 90 },
+      b: { pr_metrics: 100, cycle_time: 20, pr_impact: 50, bugs_attribution: 40, maintenance: 0,  off_hours: 10 },
     };
     const result = normalizeMetrics(raws);
     for (const author of ["a", "b"]) {
@@ -63,7 +63,7 @@ describe("applyWeights", () => {
   it("all-100 metrics yields 100 total score", () => {
     const normalized = {
       pr_metrics: 100, cycle_time: 100, pr_impact: 100,
-      bugs_attribution: 100, legacy_code: 100, off_hours: 100,
+      bugs_attribution: 100, maintenance: 100, off_hours: 100,
     };
     expect(applyWeights(normalized)).toBeCloseTo(100, 5);
   });
@@ -71,7 +71,7 @@ describe("applyWeights", () => {
   it("all-zero metrics yields 0 total score", () => {
     const normalized = {
       pr_metrics: 0, cycle_time: 0, pr_impact: 0,
-      bugs_attribution: 0, legacy_code: 0, off_hours: 0,
+      bugs_attribution: 0, maintenance: 0, off_hours: 0,
     };
     expect(applyWeights(normalized)).toBe(0);
   });

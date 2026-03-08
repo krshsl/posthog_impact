@@ -1,4 +1,4 @@
-import type {
+import {
   GithubData,
   PullRequest,
   RawMetrics,
@@ -14,7 +14,7 @@ import { calcPRMetrics } from "./pr-metrics";
 import { calcCycleTime, getPRSize } from "./cycle-time";
 import { calcPRImpact } from "./pr-impact";
 import { calcAllBugsAttribution } from "./bugs-attribution";
-import { calcLegacyCode } from "./legacy-code";
+import { calcMaintenance } from "./maintenance";
 import { calcOffHours } from "./off-hours";
 import { normalizeMetrics, applyWeights } from "./normalizer";
 
@@ -79,7 +79,7 @@ function computeRawMetrics(
       cycle_time: calcCycleTime(prs),
       pr_impact: calcPRImpact(prs),
       bugs_attribution: allBugScores[author] ?? 0,
-      legacy_code: calcLegacyCode(prs),
+      maintenance: calcMaintenance(prs),
       off_hours: calcOffHours(allCommits.map(c => ({ ...c, is_off_hours: c.is_off_hours || false, author: c.author_login, authored_at: c.date, sha: c.oid }))),
     };
   }
@@ -110,7 +110,7 @@ export function buildLeaderboard(
         cycle_time: Math.round(metrics.cycle_time),
         pr_impact: Math.round(metrics.pr_impact),
         bugs_attribution: Math.round(metrics.bugs_attribution),
-        legacy_code: Math.round(metrics.legacy_code),
+        maintenance: Math.round(metrics.maintenance),
         off_hours: Math.round(metrics.off_hours),
       };
 
@@ -179,7 +179,7 @@ function buildTimeSeries(
       cycle_time: calcCycleTime(dayPRs),
       pr_impact: calcPRImpact(dayPRs),
       bugs_attribution: issues_fixed * 10 - issues_introduced * 15,
-      legacy_code: calcLegacyCode(dayPRs),
+      maintenance: calcMaintenance(dayPRs),
       off_hours: calcOffHours(allCommits.map(c => ({ ...c, is_off_hours: c.is_off_hours || false, author: c.author_login, authored_at: c.date, sha: c.oid }))),
     };
 
@@ -189,7 +189,7 @@ function buildTimeSeries(
       cycle_time_score: parseFloat(Math.min(rawDay.cycle_time, 100).toFixed(2)),
       pr_impact_score: parseFloat(Math.max(rawDay.pr_impact, 0).toFixed(2)),
       bugs_attribution_score: parseFloat(Math.max(rawDay.bugs_attribution, 0).toFixed(2)),
-      legacy_code_score: parseFloat(Math.max(rawDay.legacy_code, 0).toFixed(2)),
+      maintenance_score: parseFloat(Math.max(rawDay.maintenance, 0).toFixed(2)),
       off_hours_score: parseFloat(Math.min(rawDay.off_hours, 100).toFixed(2)),
       raw_stats: {
         issues_fixed,
@@ -197,7 +197,7 @@ function buildTimeSeries(
         features_introduced: dayPRs.filter((p) => p.issues_fixed.length === 0).length,
         pr_count: dayPRs.length,
         off_hours_commits: allCommits.filter((c) => c.is_off_hours).length,
-        legacy_files_modified: dayPRs.reduce((s, p) => s + (p.legacy_file_count || 0), 0),
+        maintenance_score_sum: dayPRs.reduce((s, p) => s + (p.maintenance_score || 0), 0),
       },
     };
   });

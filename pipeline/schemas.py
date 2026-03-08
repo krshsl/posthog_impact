@@ -60,8 +60,8 @@ class PRRecord:
     # before this PR (populated by git_analyzer)
     bug_introduced_by: Optional[str] = None
 
-    # Number of "legacy" files touched by this PR (populated by git_analyzer)
-    legacy_file_count: int = 0
+    # Weighted "maintenance" score for files touched by this PR (populated by git_analyzer)
+    maintenance_score: float = 0.0
 
     # Flag set by graphql_client when totalCount > 100; cleared by git_analyzer
     needs_commit_backfill: bool = False
@@ -97,7 +97,7 @@ class PRRecord:
                 for i in self.issues_fixed
             ],
             "bug_introduced_by": self.bug_introduced_by,
-            "legacy_file_count": self.legacy_file_count,
+            "maintenance_score": self.maintenance_score,
         }
 
 

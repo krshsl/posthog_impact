@@ -258,6 +258,10 @@ async def paginate_prs(
                             body = await resp.json()
                         break
                     except (asyncio.TimeoutError, TimeoutError, aiohttp.ClientError) as e:
+                        if isinstance(e, aiohttp.ClientResponseError) and e.status == 403:
+                            logger.warning("[graphql] 403 Forbidden (Rate limit?). Sleeping 60s...")
+                            await asyncio.sleep(60)
+                            continue
                         if attempt == 2:
                             raise
                         logger.warning("[graphql] Request failed (%s), retrying in %d seconds...", type(e).__name__, 2 ** attempt)

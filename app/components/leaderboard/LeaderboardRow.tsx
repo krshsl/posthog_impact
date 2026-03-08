@@ -90,8 +90,8 @@ export function LeaderboardRow({ user, index }: LeaderboardRowProps) {
         </Badge>
       </td>
       <td className="px-4 py-4 whitespace-nowrap text-center">
-        <Badge variant="outline" className={`font-mono ${getScoreColor(user.metrics.legacy_code)}`}>
-          {user.metrics.legacy_code}
+        <Badge variant="outline" className={`font-mono ${getScoreColor(user.metrics.maintenance)}`}>
+          {user.metrics.maintenance}
         </Badge>
       </td>
       <td className="px-4 py-4 whitespace-nowrap text-center">

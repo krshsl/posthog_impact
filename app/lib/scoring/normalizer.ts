@@ -5,7 +5,7 @@ const WEIGHTS: Record<keyof RawMetrics, number> = {
   cycle_time:       0.05,
   pr_impact:        0.20,
   bugs_attribution: 0.25,
-  legacy_code:      0.20,
+  maintenance:      0.20,
   off_hours:        0.15,
 };
 
@@ -62,7 +62,7 @@ export function applyWeights(normalized: NormalizedMetrics): number {
     normalized.cycle_time       * WEIGHTS.cycle_time       +
     normalized.pr_impact        * WEIGHTS.pr_impact        +
     normalized.bugs_attribution * WEIGHTS.bugs_attribution +
-    normalized.legacy_code      * WEIGHTS.legacy_code      +
+    normalized.maintenance       * WEIGHTS.maintenance      +
     normalized.off_hours        * WEIGHTS.off_hours
   );
 }

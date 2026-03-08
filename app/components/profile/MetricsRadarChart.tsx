@@ -21,7 +21,7 @@ export function MetricsRadarChart({ metrics }: MetricsRadarChartProps) {
     { metric: "Cycle Time", score: metrics.cycle_time },
     { metric: "PR Impact", score: metrics.pr_impact },
     { metric: "Bugs Attr.", score: metrics.bugs_attribution },
-    { metric: "Legacy Refactor", score: metrics.legacy_code },
+    { metric: "Maintenance", score: metrics.maintenance },
     { metric: "Off-Hours", score: metrics.off_hours },
   ];
 
@@ -41,7 +41,7 @@ export function MetricsRadarChart({ metrics }: MetricsRadarChartProps) {
             margin={{ top: 10, right: 60, bottom: 10, left: 60 }}
           >
             <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
-            <PolarGrid className="fill-zinc-800/[0.05] stroke-zinc-500/50" />
+            <PolarGrid className="fill-zinc-600/20 stroke-zinc-500/50" />
             <PolarAngleAxis
               dataKey="metric"
               tick={({ payload, x, y, cx, cy, index }: any) => {

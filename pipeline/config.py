@@ -55,6 +55,7 @@ BOT_IGNORE_LIST: frozenset[str] = frozenset(
         "mergify[bot]",
         "sentry[bot]",
         "scheduled-actions-posthog",
+        "inkeep",
     }
 )
 

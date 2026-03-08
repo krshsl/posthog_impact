@@ -43,7 +43,7 @@ describe("buildLeaderboard", () => {
     const result = buildLeaderboard(data, 90);
     const requiredKeys = [
       "pr_metrics", "cycle_time", "pr_impact",
-      "bugs_attribution", "legacy_code", "off_hours",
+      "bugs_attribution", "maintenance", "off_hours",
     ];
     for (const entry of result.rankings) {
       for (const key of requiredKeys) {
@@ -106,10 +106,10 @@ describe("buildUserProfile", () => {
     const profile = buildUserProfile(data, "mariusandra", 90, leaderboard);
     const keys = [
       "pr_metrics", "cycle_time", "pr_impact",
-      "bugs_attribution", "legacy_code", "off_hours",
+      "bugs_attribution", "maintenance", "off_hours",
     ];
     for (const key of keys) {
-      const val = (profile!.metrics_radar as Record<string, number>)[key];
+      const val = (profile!.metrics_radar as any)[key];
       expect(val).toBeGreaterThanOrEqual(0);
       expect(val).toBeLessThanOrEqual(100);
     }

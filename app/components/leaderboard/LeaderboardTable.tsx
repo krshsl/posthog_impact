@@ -106,7 +106,7 @@ export function LeaderboardTable({ users }: LeaderboardTableProps) {
                 <th scope="col" className="px-4 py-4 text-center">Cycle Time</th>
                 <th scope="col" className="px-4 py-4 text-center">Impact</th>
                 <th scope="col" className="px-4 py-4 text-center">Bugs</th>
-                <th scope="col" className="px-4 py-4 text-center">Legacy Refactor</th>
+                <th scope="col" className="px-4 py-4 text-center">Maintenance</th>
                 <th scope="col" className="px-4 py-4 text-center">Off-Hours</th>
               </tr>
             </thead>

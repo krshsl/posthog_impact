@@ -1,7 +1,7 @@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-import { Trophy } from 'lucide-react';
+import { Trophy, Github } from 'lucide-react';
 import type { UserProfileResponse } from '@/lib/types';
 
 interface ProfileHeaderProps {
@@ -13,12 +13,14 @@ export function ProfileHeader({ profile, rank }: ProfileHeaderProps) {
   return (
     <Card className="p-6 bg-zinc-900/40 border-zinc-800 backdrop-blur-md">
       <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-6">
-        <Avatar className="h-24 w-24 sm:h-32 sm:w-32 border border-zinc-800 grayscale">
-          <AvatarImage src={profile.avatar_url} alt={profile.author} />
-          <AvatarFallback className="text-3xl bg-zinc-900 text-zinc-600">
-            {profile.author.substring(0, 2).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
+        <div className="flex flex-col items-center gap-3">
+          <Avatar className="h-24 w-24 sm:h-32 sm:w-32 border border-zinc-800">
+            <AvatarImage src={profile.avatar_url} alt={profile.author} />
+            <AvatarFallback className="text-3xl bg-zinc-900 text-zinc-600">
+              {profile.author.substring(0, 2).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+        </div>
 
         <div className="flex-1 text-center sm:text-left space-y-2">
           <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-zinc-100 flex flex-col sm:flex-row sm:items-center gap-3">
@@ -37,6 +39,15 @@ export function ProfileHeader({ profile, rank }: ProfileHeaderProps) {
           <p className="text-zinc-500 text-sm">
             Impact summary calculated over the selected time window.
           </p>
+          <a
+            href={`https://github.com/${profile.author}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-fit flex items-center gap-2 text-xs font-medium text-zinc-500 hover:text-cyan-400 transition-colors bg-zinc-950/50 px-3 py-1.5 rounded-full border border-zinc-800/50 hover:border-cyan-500/30 group"
+          >
+            <Github className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
+            <span>view profile</span>
+          </a>
         </div>
 
         <div className="flex flex-col items-center sm:items-end shrink-0 sm:pl-6 sm:border-l sm:border-zinc-800/50">

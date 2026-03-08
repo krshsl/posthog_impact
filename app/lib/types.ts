@@ -37,8 +37,8 @@ export interface PullRequest {
   issues_fixed: IssueRef[];
   /** Who introduced the bug that this PR fixes */
   bug_introduced_by: string | null;
-  /** How many files modified were untouched for > 6 months */
-  legacy_file_count: number;
+  /** Weighted score based on age of dormant files and rareness touched */
+  maintenance_score: number;
 }
 
 export interface PipelineMeta {
@@ -62,7 +62,7 @@ export interface RawMetrics {
   cycle_time: number;
   pr_impact: number;
   bugs_attribution: number;
-  legacy_code: number;
+  maintenance: number;
   off_hours: number;
 }
 
@@ -71,7 +71,7 @@ export interface NormalizedMetrics {
   cycle_time: number;
   pr_impact: number;
   bugs_attribution: number;
-  legacy_code: number;
+  maintenance: number;
   off_hours: number;
 }
 
@@ -99,7 +99,7 @@ export interface DailyStats {
   features_introduced: number;
   pr_count: number;
   off_hours_commits: number;
-  legacy_files_modified: number;
+  maintenance_score_sum: number;
 }
 
 export interface TimeSeriesEntry {
@@ -108,7 +108,7 @@ export interface TimeSeriesEntry {
   cycle_time_score: number;
   pr_impact_score: number;
   bugs_attribution_score: number;
-  legacy_code_score: number;
+  maintenance_score: number;
   off_hours_score: number;
   raw_stats: DailyStats;
 }
