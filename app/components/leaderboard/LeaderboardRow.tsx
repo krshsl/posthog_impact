@@ -55,13 +55,13 @@ export function LeaderboardRow({ user, index }: LeaderboardRowProps) {
       </td>
       <td className="px-4 py-4 whitespace-nowrap">
         <div className="flex items-center gap-3">
-          <Avatar className="h-10 w-10 border border-zinc-800 group-hover:border-cyan-500/50 transition-colors">
+          <Avatar className="h-10 w-10 border border-zinc-800 grayscale group-hover:grayscale-0 transition-all">
             <AvatarImage src={user.avatar_url} alt={user.author} />
-            <AvatarFallback className="bg-zinc-800 text-zinc-400">
+            <AvatarFallback className="bg-zinc-900 text-zinc-500 text-xs">
               {user.author.substring(0, 2).toUpperCase()}
             </AvatarFallback>
           </Avatar>
-          <span className="font-medium text-zinc-200 group-hover:text-cyan-400 transition-colors">
+          <span className="font-medium text-zinc-300 group-hover:text-zinc-100 transition-colors">
             {user.author}
           </span>
         </div>

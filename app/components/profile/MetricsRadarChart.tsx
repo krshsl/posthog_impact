@@ -11,7 +11,7 @@ interface MetricsRadarChartProps {
 const chartConfig = {
   score: {
     label: "Score",
-    color: "hsl(var(--chart-1))",
+    color: "#fafafa", // zinc-50
   },
 } satisfies ChartConfig
 

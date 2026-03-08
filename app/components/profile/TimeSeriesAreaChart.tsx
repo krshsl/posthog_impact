@@ -80,13 +80,12 @@ export function TimeSeriesAreaChart({ data, title, description, dataKeys }: Time
             {dataKeys.map((k) => (
               <Area
                 key={k.key}
-                type="natural"
+                type="monotone"
                 dataKey={k.key}
                 stroke={k.color}
                 strokeWidth={2}
                 fill={`url(#fill${k.key})`}
                 fillOpacity={1}
-                stackId="a"
               />
             ))}
             <ChartLegend content={<ChartLegendContent />} />
