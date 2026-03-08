@@ -61,7 +61,7 @@ export function LeaderboardTable({ users }: LeaderboardTableProps) {
               <Card className={`relative overflow-hidden bg-zinc-900/50 border ${getRankColor(user.rank).split(' ').find(s => s.startsWith('border-'))} transition-all group hover:bg-zinc-900/80`}>
                 <div className="relative p-6 flex flex-col items-center text-center space-y-4">
                   <div className="relative">
-                    <Avatar className="h-20 w-20 border border-zinc-800 grayscale group-hover:grayscale-0 transition-all duration-300">
+                    <Avatar className="h-20 w-20 border border-zinc-800 transition-all duration-300">
                       <AvatarImage src={user.avatar_url} />
                       <AvatarFallback>{user.author.substring(0, 2)}</AvatarFallback>
                     </Avatar>
