@@ -102,7 +102,7 @@ def load_state(path: str) -> tuple[OutputPayload | None, MetaState]:
             reviews_first_at=pr_raw.get("reviews_first_at"),
             issues_fixed=issues,
             bug_introduced_by=pr_raw.get("bug_introduced_by"),
-            legacy_file_count=pr_raw.get("legacy_file_count", 0),
+            maintenance_score=pr_raw.get("maintenance_score", 0),
         ))
 
     payload = OutputPayload(meta=meta, pull_requests=prs)
