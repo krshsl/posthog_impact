@@ -109,7 +109,7 @@ async def _main(args: argparse.Namespace) -> None:
         )
 
     # -------------------------------------------------------------------
-    # Step 3: Bidirectional GraphQL sync
+    # Step 3: Bidirectional GraphQL sync 
     # -------------------------------------------------------------------
     async with aiohttp.ClientSession(
         headers={
@@ -117,7 +117,7 @@ async def _main(args: argparse.Namespace) -> None:
             "Content-Type": "application/json",
         }
     ) as session:
-        prs, updated_meta = await run_sync(
+        prs, new_prs, updated_meta = await run_sync(
             existing_payload=existing_payload,
             meta=meta,
             now=now,
@@ -125,27 +125,21 @@ async def _main(args: argparse.Namespace) -> None:
             session=session,
         )
 
-    logger.info("Sync complete: %d PRs in window", len(prs))
+    logger.info("GraphQL sync complete (%d PRs total, %d new). Running stage-based git analysis...", len(prs), len(new_prs))
+    
+    if clone_task is not None:
+        await clone_task
+        
+    if not args.skip_git:
+        await analyze_prs_concurrently(new_prs, clone_dir=GIT_CLONE_DIR)
 
     # -------------------------------------------------------------------
-    # Step 4: Bot filtering + off-hours hydration
+    # Step 4: Bot filtering + off-hours hydration (Final sweep)
     # -------------------------------------------------------------------
+    # Re-apply off-hours flags completely after Git modifications and backfill
     prs = filter_bots(prs)
     prs = apply_off_hours_flags(prs)
     logger.info("After bot filter: %d PRs", len(prs))
-
-    # -------------------------------------------------------------------
-    # Step 5: Concurrent git annotation
-    # -------------------------------------------------------------------
-    if not args.skip_git:
-        if clone_task is not None:
-            await clone_task  # ensure clone is ready before git ops
-        logger.info("Running git annotation on %d PRs…", len(prs))
-        prs = await analyze_prs_concurrently(prs, clone_dir=GIT_CLONE_DIR)
-        # Re-apply off-hours after potential commit backfill
-        prs = apply_off_hours_flags(prs)
-    else:
-        logger.info("--skip-git flag set, skipping git annotation")
 
     # -------------------------------------------------------------------
     # Step 6: Export

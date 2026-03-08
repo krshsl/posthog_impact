@@ -98,6 +98,7 @@ def load_state(path: str) -> tuple[OutputPayload | None, MetaState]:
             changed_files=pr_raw.get("changed_files", 0),
             is_draft=pr_raw.get("is_draft", False),
             commits=commits,
+            modified_files=pr_raw.get("modified_files", []),
             reviews_first_at=pr_raw.get("reviews_first_at"),
             issues_fixed=issues,
             bug_introduced_by=pr_raw.get("bug_introduced_by"),
@@ -242,7 +243,7 @@ async def run_sync(
     now: datetime,
     window_days: int,
     session: aiohttp.ClientSession | None = None,
-) -> tuple[list[PRRecord], MetaState]:
+) -> tuple[list[PRRecord], list[PRRecord], MetaState]:
     """Orchestrate bidirectional sync and pruning.
 
     Args:
@@ -253,7 +254,7 @@ async def run_sync(
         session:          Optional shared aiohttp session.
 
     Returns:
-        Tuple of (final PR list, updated MetaState).
+        Tuple of (pruned PR list, list of new PRs needing git analysis, updated MetaState).
     """
     existing_prs = existing_payload.pull_requests if existing_payload else []
     target_earliest = now - timedelta(days=window_days)
@@ -279,5 +280,5 @@ async def run_sync(
         earliest_fetched_at=target_earliest.isoformat(),
         window_days=window_days,
     )
-    return pruned, updated_meta
+    return pruned, all_new, updated_meta
 

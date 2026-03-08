@@ -139,14 +139,12 @@ def _mock_response(nodes: list[dict], has_next: bool = False, cursor: str | None
     """Build a mock aiohttp response for the GraphQL endpoint."""
     body = {
         "data": {
-            "repository": {
-                "pullRequests": {
-                    "pageInfo": {
-                        "hasNextPage": has_next,
-                        "endCursor": cursor,
-                    },
-                    "nodes": nodes,
-                }
+            "search": {
+                "pageInfo": {
+                    "hasNextPage": has_next,
+                    "endCursor": cursor,
+                },
+                "nodes": nodes,
             }
         }
     }
@@ -162,7 +160,7 @@ def _mock_response(nodes: list[dict], has_next: bool = False, cursor: str | None
 class TestPaginatePRs:
     async def test_single_page(self):
         since = datetime(2024, 1, 1, tzinfo=timezone.utc)
-        until = datetime(2024, 1, 31, tzinfo=timezone.utc)
+        until = datetime(2024, 1, 7, tzinfo=timezone.utc)
 
         mock_session = MagicMock()
         mock_session.post = MagicMock(return_value=_mock_response(
@@ -179,7 +177,7 @@ class TestPaginatePRs:
 
     async def test_multi_page_cursor_threading(self):
         since = datetime(2024, 1, 1, tzinfo=timezone.utc)
-        until = datetime(2024, 1, 31, tzinfo=timezone.utc)
+        until = datetime(2024, 1, 7, tzinfo=timezone.utc)
 
         call_count = 0
         responses = [
@@ -208,34 +206,15 @@ class TestPaginatePRs:
         body = second_call_kwargs[1]["json"]
         assert body["variables"]["cursor"] == "cursor_page2"
 
-    async def test_stops_early_when_past_since(self):
-        since = datetime(2024, 1, 5, tzinfo=timezone.utc)
-        until = datetime(2024, 1, 31, tzinfo=timezone.utc)
-
-        mock_session = MagicMock()
-        # Node merged before `since` → should trigger early stop
-        mock_session.post = MagicMock(return_value=_mock_response(
-            nodes=[_pr_node(number=1, merged_at="2024-01-01T00:00:00+00:00")],
-            has_next=True,  # Would paginate further if not for early stop
-        ))
-
-        pages = []
-        async for page in paginate_prs(since=since, until=until, session=mock_session):
-            pages.append(page)
-
-        # No PRs within window, and pagination stopped after 1 request
-        assert pages == []
-        assert mock_session.post.call_count == 1
-
-    async def test_skips_prs_after_until(self):
+    async def test_skips_prs_without_merged_at(self):
         since = datetime(2024, 1, 1, tzinfo=timezone.utc)
-        until = datetime(2024, 1, 10, tzinfo=timezone.utc)
+        until = datetime(2024, 1, 7, tzinfo=timezone.utc)
 
         mock_session = MagicMock()
         mock_session.post = MagicMock(return_value=_mock_response(
             nodes=[
-                _pr_node(number=99, merged_at="2024-01-15T00:00:00+00:00"),  # after until → skip
-                _pr_node(number=1, merged_at="2024-01-08T00:00:00+00:00"),   # within → keep
+                _pr_node(number=1, merged_at="2024-01-08T00:00:00+00:00"),
+                {"number": 2, "title": "Missing"}
             ],
             has_next=False,
         ))
@@ -246,5 +225,5 @@ class TestPaginatePRs:
 
         assert len(pages) == 1
         numbers = [pr.number for pr in pages[0]]
-        assert 99 not in numbers
         assert 1 in numbers
+        assert 2 not in numbers

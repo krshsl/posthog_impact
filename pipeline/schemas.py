@@ -50,6 +50,7 @@ class PRRecord:
     is_draft: bool
 
     commits: list[CommitRecord] = field(default_factory=list)
+    modified_files: list[str] = field(default_factory=list)
     reviews_first_at: Optional[str] = None   # ISO 8601 of earliest review event
 
     # Closed issues resolved by this PR
@@ -75,6 +76,7 @@ class PRRecord:
             "additions": self.additions,
             "deletions": self.deletions,
             "changed_files": self.changed_files,
+            "modified_files": self.modified_files,
             "is_draft": self.is_draft,
             "commits": [
                 {

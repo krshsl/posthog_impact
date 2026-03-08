@@ -29,26 +29,16 @@ logger = logging.getLogger(__name__)
 _git_semaphore: asyncio.Semaphore | None = None
 _pr_semaphore: asyncio.Semaphore | None = None
 
-# Simple in-memory LRU cache for file metadata to avoid repeated `git log`
-# calls for the same (commit_hash, file_path) pair within a run.
-FILE_METADATA_CACHE_SIZE = 10000
-_file_metadata_cache: OrderedDict[tuple[str, str], tuple[str | None, bool]] = OrderedDict()
-_file_metadata_lock = asyncio.Lock()
-# Track in-flight requests to deduplicate concurrent queries for the same key.
-_file_metadata_inflight: dict[tuple[str, str], asyncio.Future] = {}
-
-
 def _get_git_semaphore() -> asyncio.Semaphore:
     global _git_semaphore
     if _git_semaphore is None:
         _git_semaphore = asyncio.Semaphore(GIT_CONCURRENCY)
     return _git_semaphore
 
-
 def _get_pr_semaphore() -> asyncio.Semaphore:
     global _pr_semaphore
     if _pr_semaphore is None:
-        _pr_semaphore = asyncio.Semaphore(50)  # Bound PR-level concurrency
+        _pr_semaphore = asyncio.Semaphore(20)  # Bound PR-level concurrency (avoid macOS FD limits)
     return _pr_semaphore
 
 
@@ -163,146 +153,7 @@ async def backfill_commits(
 
 
 # ---------------------------------------------------------------------------
-# Bug attribution
-# ---------------------------------------------------------------------------
-
-
-async def get_file_metadata(
-    commit_hash: str,
-    file_path: str,
-    clone_dir: str = GIT_CLONE_DIR,
-    legacy_months: int = 6,
-) -> tuple[str | None, bool]:
-    """Return (previous_author, is_legacy) for a file using a single git call.
-
-    Runs:
-        git log -n 1 --format="%aN|%cI" --skip=1 <commit_hash> -- <file_path>
-
-    Args:
-        commit_hash:   SHA of the PR's merge commit.
-        file_path:     Relative path of the file.
-        clone_dir:     Path to the bare clone.
-        legacy_months: Dormancy threshold in months.
-
-    Returns:
-        Tuple of (author_name or None, is_legacy_boolean).
-    """
-    key = (commit_hash, file_path)
-
-    # Fast-path: check cache or in-flight requests under the lock.
-    async with _file_metadata_lock:
-        if key in _file_metadata_cache:
-            # LRU: move to end and return
-            _file_metadata_cache.move_to_end(key)
-            return _file_metadata_cache[key]
-
-        fut = _file_metadata_inflight.get(key)
-        if fut is not None:
-            # Another coroutine is already fetching this key; wait for it
-            # and return the resolved value or raise its exception.
-            try:
-                return await fut
-            except Exception:
-                return None, False
-
-        # Create a future to mark this request as in-flight.
-        loop = asyncio.get_running_loop()
-        fut = loop.create_future()
-        _file_metadata_inflight[key] = fut
-
-    # Perform the git call outside the cache lock to avoid blocking others.
-    try:
-        async with _get_git_semaphore():
-            out = await _run_git(
-                [
-                    "log", "-n", "1",
-                    "--format=%aN|%cI",
-                    "--skip=1",
-                    commit_hash,
-                    "--",
-                    file_path,
-                ],
-                cwd=clone_dir,
-            )
-    except RuntimeError as exc:
-        logger.debug("[git] get_file_metadata failed (%s, %s): %s", commit_hash, file_path, exc)
-        # Cleanup in-flight and set exception for waiters
-        async with _file_metadata_lock:
-            fut = _file_metadata_inflight.pop(key, None)
-            if fut and not fut.done():
-                fut.set_exception(exc)
-        return None, False
-
-    if not out or "|" not in out:
-        result = (None, False)
-    else:
-        parts = out.split("|", 1)
-        author = parts[0].strip() if parts[0].strip() else None
-        is_legacy = False
-
-        if len(parts) > 1 and parts[1].strip():
-            try:
-                prev_dt = datetime.fromisoformat(parts[1].strip())
-                now = datetime.now(tz=timezone.utc)
-                threshold = now - timedelta(days=legacy_months * 30)
-                is_legacy = prev_dt.replace(tzinfo=prev_dt.tzinfo or timezone.utc) < threshold
-            except (ValueError, TypeError):
-                is_legacy = False
-
-        result = (author, is_legacy)
-
-    # Store in cache and resolve in-flight future
-    async with _file_metadata_lock:
-        # Store result in LRU cache
-        _file_metadata_cache[key] = result
-        _file_metadata_cache.move_to_end(key)
-        # Evict oldest if over capacity
-        while len(_file_metadata_cache) > FILE_METADATA_CACHE_SIZE:
-            _file_metadata_cache.popitem(last=False)
-
-        fut = _file_metadata_inflight.pop(key, None)
-        if fut and not fut.done():
-            fut.set_result(result)
-
-    return result
-
-
-# ---------------------------------------------------------------------------
-# Extract changed files from a merge commit
-# ---------------------------------------------------------------------------
-
-
-async def get_changed_files(
-    commit_hash: str,
-    clone_dir: str = GIT_CLONE_DIR,
-) -> list[str]:
-    """Return files changed by a merge commit vs its first parent.
-
-    Runs:
-        git diff-tree --no-commit-id -r --name-only <commit_hash>
-
-    Args:
-        commit_hash: SHA of the merge commit.
-        clone_dir:   Path to the bare clone.
-
-    Returns:
-        List of relative file paths.
-    """
-    async with _get_git_semaphore():
-        try:
-            out = await _run_git(
-                ["diff-tree", "--no-commit-id", "-r", "--name-only", commit_hash],
-                cwd=clone_dir,
-            )
-        except RuntimeError as exc:
-            logger.debug("[git] get_changed_files failed (%s): %s", commit_hash, exc)
-            return []
-
-    return [line for line in out.splitlines() if line]
-
-
-# ---------------------------------------------------------------------------
-# Orchestrator: annotate all PRs concurrently
+# Orchestrator: annotate PRs
 # ---------------------------------------------------------------------------
 
 
@@ -310,84 +161,178 @@ async def analyze_prs_concurrently(
     prs: list[PRRecord],
     clone_dir: str = GIT_CLONE_DIR,
 ) -> list[PRRecord]:
-    """Annotate each PR with `bug_introduced_by`, `legacy_file_count`, and backfilled commits.
-
-    For each PR:
-      1. If `needs_commit_backfill`, fetch missing commits from local git.
-      2. Determine changed files via `git diff-tree`.
-      3. For each changed file (up to 20), query previous author and legacy status.
-      4. Set `bug_introduced_by` (majority-vote author across files).
-      5. Set `legacy_file_count`.
-
-    All operations run concurrently within the shared semaphore budget.
-
-    Args:
-        prs:       List of PRRecord objects to annotate (mutated in-place).
-        clone_dir: Path to the bare clone.
-
-    Returns:
-        The same list, annotated.
+    """Annotate PRs using a 3-Stage Inverse PR-to-File map streaming architecture.
+    
+    Stage 1: Calculate Diff-Tree and Backfill commits for all PRs concurrently.
+    Stage 2: Build an inverse map (`file -> list[PRRecord]`) for all modified files.
+    Stage 3: Stream `git log` backwards in one O(N) pass, natively resolving all attributions
+             for all PRs as the files materialize in history.
     """
     total = len(prs)
-    processed = 0
+    if not total:
+        return prs
 
-    async def _wrapped_annotate(pr):
-        nonlocal processed
+    # -----------------------------------------------------------------------
+    # Stage 1: Commit Backfill
+    # -----------------------------------------------------------------------
+    logger.info("[git] Stage 1: Checking %d PRs for commit backfill (GraphQL overflow)...", total)
+    stage1_processed = 0
+
+    async def stage1_pr(pr: PRRecord):
+        nonlocal stage1_processed
         async with _get_pr_semaphore():
             try:
-                await _annotate_pr(pr, clone_dir)
+                if not pr.commits:
+                    return
+                
+                # Commit backfill
+                if pr.needs_commit_backfill:
+                    merge_oid = pr.commits[0].oid
+                    backfilled = await backfill_commits(merge_oid, clone_dir)
+                    if backfilled:
+                        pr.commits = backfilled
+                        pr.needs_commit_backfill = False
+                        
             except Exception as e:
-                logger.error("[git] Failed to annotate PR #%d: %s", pr.number, e)
+                logger.error("[git] Stage 1 error for PR #%d: %s", pr.number, e)
             finally:
-                processed += 1
-                if processed % 100 == 0 or processed == total:
-                    logger.info("[git] Progress: annotated %d/%d PRs", processed, total)
+                stage1_processed += 1
+                if stage1_processed % 100 == 0 or stage1_processed == total:
+                    logger.info("[git] Progress: stage 1 completed %d/%d PRs", stage1_processed, total)
 
-    tasks = [_wrapped_annotate(pr) for pr in prs]
-    await asyncio.gather(*tasks)
+    await asyncio.gather(*(stage1_pr(pr) for pr in prs))
+
+    # -----------------------------------------------------------------------
+    # Stage 2: Inverse Map Construction
+    # -----------------------------------------------------------------------
+    # pending_files: maps file_path -> list of PR objects that need it resolved
+    pending_files: dict[str, list[PRRecord]] = {}
+    pr_author_votes: dict[int, dict[str, int]] = {pr.number: {} for pr in prs}
+    pr_legacy_counts: dict[int, int] = {pr.number: 0 for pr in prs}
+    pr_ignore_oids: dict[int, set[str]] = {}
+
+    oldest_merge_dt = None
+
+    for pr in prs:
+        pr_ignore_oids[pr.number] = {c.oid for c in pr.commits}
+        
+        if not pr.merged_at:
+            continue
+            
+        pr_merge_dt = datetime.fromisoformat(pr.merged_at.replace("Z", "+00:00"))
+        if oldest_merge_dt is None or pr_merge_dt < oldest_merge_dt:
+            oldest_merge_dt = pr_merge_dt
+
+        for f in pr.modified_files:
+            if f not in pending_files:
+                pending_files[f] = []
+            pending_files[f].append(pr)
+
+    if not pending_files:
+        return prs
+
+    logger.info("[git] Stage 2: Built inverse map for %d unique files.", len(pending_files))
+
+    # We bound the historical traversal to `oldest PR merge - 2 years`
+    # This guarantees we never trace to the dawn of git history for orphaned files
+    cutoff_dt = oldest_merge_dt - timedelta(days=365 * 2) if oldest_merge_dt else None
+
+    # -----------------------------------------------------------------------
+    # Stage 3: Steaming O(N) Git Log resolution
+    # -----------------------------------------------------------------------
+    logger.info("[git] Stage 3: Streaming git log backwards to resolve attributions...")
+    cmd = [
+        "git", "log",
+        "--format=commit|%H|%aN|%cI",
+        "--name-only",
+        "-m",   # Important: also show what files changed in merge commits
+        "HEAD"  # We swept all PRs, they are all reachable from master HEAD
+    ]
+    
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        cwd=clone_dir,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    
+    current_commit_oid = None
+    current_author = None
+    current_dt = None
+    
+    while True:
+        line_bytes = await proc.stdout.readline()
+        if not line_bytes:
+            break
+            
+        line = line_bytes.decode('utf-8', errors='replace').strip()
+        if not line:
+            continue
+            
+        if line.startswith("commit|"):
+            parts = line.split("|", 3)
+            if len(parts) >= 4:
+                current_commit_oid = parts[1].strip()
+                current_author = parts[2].strip() or None
+                try:
+                    current_dt = datetime.fromisoformat(parts[3].strip())
+                except ValueError:
+                    current_dt = None
+                    
+            # Check cutoff: abort stream if we've traveled further back in time than necessary
+            if current_dt and cutoff_dt and current_dt < cutoff_dt:
+                logger.debug("[git] Reached timeline cutoff %s, aborting stream early.", cutoff_dt)
+                break
+                
+        else:
+            # It's a file path
+            file_path = line
+            if file_path in pending_files:
+                # Iterate a copy of the set since we may remove elements from it
+                prs_needing_file = list(pending_files[file_path])
+                for pr in prs_needing_file:
+                    
+                    # 1. Skip if the commit is part of the PR itself (don't blame ourselves)
+                    if current_commit_oid in pr_ignore_oids[pr.number]:
+                        continue
+                        
+                    # 2. Check if the historical commit actually predates the PR's landing
+                    pr_merge_dt = datetime.fromisoformat(pr.merged_at.replace("Z", "+00:00"))
+                    if current_dt and current_dt <= pr_merge_dt:
+                        # Success! Found the previous modification
+                        if current_author:
+                            pr_author_votes[pr.number][current_author] = pr_author_votes[pr.number].get(current_author, 0) + 1
+                        
+                        # Check Legacy condition (> 6 months dormant prior to PR)
+                        legacy_threshold = pr_merge_dt - timedelta(days=6 * 30)
+                        if current_dt < legacy_threshold:
+                            pr_legacy_counts[pr.number] += 1
+                            
+                        # Remove this PR from caring about this file anymore
+                        pending_files[file_path].remove(pr)
+                        
+                # If no PRs care about this file anymore, remove it from inverse map entirely
+                if not pending_files[file_path]:
+                    del pending_files[file_path]
+                    
+                # Short-circuit if all files are entirely resolved
+                if not pending_files:
+                    logger.info("[git] All %d files resolved successfully! Terminating git stream.", len(pending_files))
+                    break
+
+    # Cleanup subprocess if we short-circuited
+    if proc.returncode is None:
+        try:
+            proc.terminate()
+            await proc.wait()
+        except OSError:
+            pass
+
+    # Finally, assign the tabulated aggregated results back to the PRs
+    for pr in prs:
+        votes = pr_author_votes.get(pr.number)
+        if votes:
+            pr.bug_introduced_by = max(votes, key=lambda k: votes[k])
+        pr.legacy_file_count = pr_legacy_counts.get(pr.number, 0)
+
     return prs
-
-
-async def _annotate_pr(pr: PRRecord, clone_dir: str) -> None:
-    """Annotate a single PRRecord in-place."""
-    # Use the OID of the most recent commit as the merge commit reference
-    if not pr.commits:
-        return
-    merge_oid = pr.commits[0].oid  # GraphQL returns newest first
-
-    # 1. Commit backfill
-    if pr.needs_commit_backfill:
-        backfilled = await backfill_commits(merge_oid, clone_dir)
-        if backfilled:
-            # Replace truncated list with full local list
-            pr.commits = backfilled
-            pr.needs_commit_backfill = False
-            logger.debug("[git] backfilled %d commits for PR #%d", len(backfilled), pr.number)
-
-    # 2. Changed files
-    files = await get_changed_files(merge_oid, clone_dir)
-    # Cap at 20 files to avoid runaway git calls on massive PRs
-    files = files[:20]
-
-    if not files:
-        return
-
-    # 3. Per-file queries
-    author_votes: dict[str, int] = {}
-    legacy_count = 0
-
-    meta_tasks = [get_file_metadata(merge_oid, f, clone_dir) for f in files]
-    results = await asyncio.gather(*meta_tasks, return_exceptions=True)
-
-    for res in results:
-        if isinstance(res, tuple):
-            author, is_legacy = res
-            if author:
-                author_votes[author] = author_votes.get(author, 0) + 1
-            if is_legacy:
-                legacy_count += 1
-
-    # 4 & 5. Write results
-    if author_votes:
-        pr.bug_introduced_by = max(author_votes, key=lambda k: author_votes[k])
-    pr.legacy_file_count = legacy_count
