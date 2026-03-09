@@ -39,9 +39,9 @@ export function LeaderboardRow({ user, index }: LeaderboardRowProps) {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05 }}
-      className="group border-b border-zinc-800/50 hover:bg-zinc-900/50 transition-colors relative"
+      className="group flex flex-col md:table-row border-b border-zinc-800/50 hover:bg-zinc-900/50 transition-colors relative py-6 md:py-0"
     >
-      <td className="px-4 py-4 whitespace-nowrap">
+      <td className="px-4 py-2 md:py-4 whitespace-nowrap flex justify-center md:table-cell">
         <div className="flex items-center justify-center w-8">
           {getRankBadge(user.rank)}
         </div>

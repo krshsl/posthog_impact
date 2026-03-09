@@ -20,73 +20,97 @@ export function LeaderboardTable({ users }: LeaderboardTableProps) {
 
   const top5 = users.slice(0, 5);
   // Reorder for Mountain layout: 4, 2, 1, 3, 5
-  const mountainOrder = [3, 1, 0, 2, 4]; // indices for 4th, 2nd, 1st, 3rd, 5th
+  const mountainOrder = [3, 1, 0, 2, 4];
   const mountainTop5 = mountainOrder.map(index => top5[index]).filter(Boolean);
 
+  // Responsive mountain shape: only use Y-translation on mobile to prevent overlapping, 
+  // add scale back in on larger screens.
   const getRankScale = (rank: number) => {
     switch (rank) {
-      case 1: return "lg:scale-105 lg:-translate-y-4 z-30";
-      case 2: return "lg:scale-100 lg:-translate-y-2 z-20";
-      case 3: return "lg:scale-100 lg:-translate-y-2 z-20";
-      default: return "lg:scale-95 z-10 opacity-90";
+      case 1: return "z-30 -translate-y-4 md:-translate-y-8 md:scale-110";
+      case 2:
+      case 3: return "z-20 -translate-y-2 md:-translate-y-4 md:scale-105";
+      default: return "z-10 scale-100 opacity-90 hover:opacity-100";
     }
   };
 
-  const getRankColor = (rank: number) => {
+  const getCardStyles = (rank: number) => {
     switch (rank) {
-      case 1: return "border-yellow-500/50 text-yellow-500";
-      case 2: return "border-zinc-400/50 text-zinc-300";
-      case 3: return "border-amber-800/50 text-amber-600";
-      default: return "border-zinc-800 text-zinc-500";
+      case 1: return "border-yellow-500/50 shadow-[0_0_15px_rgba(234,179,8,0.1)]";
+      case 2: return "border-zinc-400/50";
+      case 3: return "border-amber-700/50";
+      default: return "border-zinc-800";
+    }
+  };
+
+  const getMedalColor = (rank: number) => {
+    switch (rank) {
+      case 1: return "text-yellow-500";
+      case 2: return "text-zinc-300";
+      case 3: return "text-amber-600";
+      default: return "text-zinc-500";
     }
   };
 
   return (
     <div className="space-y-12">
       {/* Top 5 Hero Strip - Mountain Layout */}
-      <div className="flex flex-col lg:flex-row items-end justify-center gap-4 lg:gap-6 xl:gap-10 px-2 lg:px-4 py-8">
+      {/* Container: pt-8 ensures the #1 card doesn't get cut off at the top when translated up */}
+      <div className="flex flex-row items-end justify-center gap-1.5 sm:gap-3 md:gap-4 lg:gap-6 pt-12 pb-4 px-1 sm:px-4">
         {mountainTop5.map((user, i) => (
           <motion.div
             key={user.author}
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1, duration: 0.5 }}
-            className={`w-full lg:w-1/5 max-w-[280px] lg:max-w-none ${getRankScale(user.rank)} transition-all duration-500 hover:z-50`}
+            // flex-1 min-w-0 ensures they share row space evenly and trigger text truncation properly
+            className={`flex-1 min-w-0 max-w-[180px] ${getRankScale(user.rank)} transition-all duration-300 group`}
           >
             <Link
               href={`/?user=${user.author}&days=${days}`}
               scroll={false}
               prefetch={true}
+              className="block outline-none"
             >
-              <Card className={`relative overflow-hidden bg-zinc-900/50 border ${getRankColor(user.rank).split(' ').find(s => s.startsWith('border-'))} transition-all group hover:bg-zinc-900/80`}>
-                <div className="relative p-6 flex flex-col items-center text-center space-y-4">
-                  <div className="relative">
-                    <Avatar className="h-20 w-20 border border-zinc-800 transition-all duration-300">
-                      <AvatarImage src={user.avatar_url} />
-                      <AvatarFallback>{user.author.substring(0, 2)}</AvatarFallback>
-                    </Avatar>
-                    <div className={`absolute -bottom-1 -right-1 rounded-full p-1.5 border border-zinc-800 bg-zinc-950 ${getRankColor(user.rank).split(' ').pop()}`}>
-                      <Medal className="w-4 h-4" />
-                    </div>
-                  </div>
-                  <div className="space-y-2 w-full">
-                    <div className="flex flex-col items-center">
-                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-1">Rank #{user.rank}</span>
-                      <h3 className="font-bold text-zinc-100 line-clamp-1 text-base xl:text-lg tracking-tight" title={user.author}>{user.author}</h3>
-                    </div>
-                    <div className="py-2 px-3 bg-zinc-950 rounded-lg border border-zinc-800">
-                      <div className="text-2xl xl:text-3xl font-bold font-mono tracking-tighter text-zinc-100">
-                        {user.total_score.toLocaleString()}
-                      </div>
-                      <div className="text-[9px] font-medium text-zinc-500 uppercase tracking-widest mt-0.5">Impact Points</div>
-                    </div>
-                  </div>
-                </div>
+              <Card className={`relative overflow-hidden bg-zinc-900/60 border ${getCardStyles(user.rank)} hover:bg-zinc-900 transition-colors p-2 sm:p-3 md:p-5 flex flex-col items-center text-center h-full`}>
+
+                {/* 1st Place Badge */}
                 {user.rank === 1 && (
-                  <div className="absolute top-0 right-0 p-2">
-                    <Badge className="bg-zinc-100 hover:bg-zinc-100 text-zinc-900 text-[8px] font-bold px-1.5 py-0 rounded-none uppercase tracking-tighter">Leader</Badge>
+                  <div className="absolute top-0 right-0">
+                    <Badge className="bg-zinc-100 text-zinc-900 text-[8px] md:text-[10px] font-bold px-1.5 py-0 md:px-2 md:py-0.5 rounded-none rounded-bl-lg uppercase tracking-tighter hover:bg-zinc-200 border-none">
+                      1st
+                    </Badge>
                   </div>
                 )}
+
+                {/* Avatar */}
+                <div className="relative mb-2 md:mb-4">
+                  <Avatar className="h-8 w-8 sm:h-12 sm:w-12 md:h-16 md:w-16 border border-zinc-800 transition-all duration-300 group-hover:border-zinc-600">
+                    <AvatarImage src={user.avatar_url} />
+                    <AvatarFallback className="text-[10px] md:text-sm">{user.author.substring(0, 2)}</AvatarFallback>
+                  </Avatar>
+                  <div className="absolute -bottom-1 -right-1 md:-bottom-1.5 md:-right-1.5 rounded-full p-0.5 md:p-1 border border-zinc-800 bg-zinc-950">
+                    <Medal className={`w-3 h-3 md:w-4 md:h-4 ${getMedalColor(user.rank)}`} />
+                  </div>
+                </div>
+
+                {/* User Info */}
+                <div className="w-full flex flex-col items-center space-y-1 md:space-y-2">
+                  <span className="hidden lg:block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">Rank #{user.rank}</span>
+
+                  {/* Truncate ensures long names get "..." instead of wrapping and breaking layout */}
+                  <h3 className="font-bold text-zinc-100 truncate w-full px-1 text-[10px] sm:text-xs md:text-sm lg:text-base tracking-tight" title={user.author}>
+                    {user.author}
+                  </h3>
+
+                  {/* Score */}
+                  <div className="w-full py-1 md:py-2 px-1 bg-zinc-950/80 rounded border border-zinc-800/50 group-hover:border-zinc-700/50 transition-colors">
+                    <div className="text-xs sm:text-sm md:text-xl lg:text-2xl font-bold font-mono tracking-tighter text-zinc-100">
+                      {user.total_score.toLocaleString()}
+                    </div>
+                    <div className="hidden lg:block sm:block sm:text-[7px] lg:text-[9px] font-medium text-zinc-500 uppercase tracking-widest mt-0.5">Impact Points</div>
+                  </div>
+                </div>
               </Card>
             </Link>
           </motion.div>
@@ -96,8 +120,8 @@ export function LeaderboardTable({ users }: LeaderboardTableProps) {
       {/* Main Table */}
       <div className="rounded-xl border border-zinc-800/60 bg-zinc-950/50 overflow-hidden shadow-xl backdrop-blur-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="text-xs text-zinc-400 uppercase bg-zinc-900/50 border-b border-zinc-800/60">
+          <table className="w-full text-sm text-left block md:table min-w-[800px]">
+            <thead className="hidden md:table-header-group text-xs text-zinc-400 uppercase bg-zinc-900/50 border-b border-zinc-800/60">
               <tr>
                 <th scope="col" className="px-4 py-4 text-center w-16">Rank</th>
                 <th scope="col" className="px-4 py-4">Engineer</th>
@@ -110,7 +134,7 @@ export function LeaderboardTable({ users }: LeaderboardTableProps) {
                 <th scope="col" className="px-4 py-4 text-center">Off-Hours</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="block md:table-row-group w-full">
               {users.map((user, i) => (
                 <LeaderboardRow key={user.author} user={user} index={i} />
               ))}
